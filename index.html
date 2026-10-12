@@ -48,6 +48,7 @@ button.primary{background:var(--acc);color:var(--bg);font-weight:700;border:0}
 .x{background:none;border:0;color:var(--mut);font-size:20px;padding:4px 8px}
 .empty{color:var(--mut);text-align:center;padding:18px}
 .tap{cursor:pointer}
+.calc{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .more summary{cursor:pointer;color:var(--mut);padding:8px 0;font-size:14px}
 .more>div{display:grid;gap:8px;margin-top:4px}
 .lnk{background:none;border:1px solid var(--line);border-radius:8px;color:var(--ink);font:600 13px inherit;font-family:inherit;padding:8px 12px;min-height:36px}
@@ -141,7 +142,9 @@ function resumo(){
 function movs(){
  const l=monthTx();
  return `<form id="f">${editing?`<div class="card" style="border-color:var(--inv);margin:0">✎ A editar${editing.kind==="r"?" um movimento recorrente":""} <button type="button" class="lnk" id="cancel" style="float:right">Cancelar</button></div>`:""}<div class="seg">${["despesa","receita","investimento","transferencia"].map(t=>`<label><input type="radio" name="t" value="${t}" ${t===type?"checked":""} ${editing&&t!==type?"disabled":""}><span>${({transferencia:"Transferência"})[t]||t[0].toUpperCase()+t.slice(1)}</span></label>`).join("")}</div>
- <input name="a" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Valor (€)" required>
+ <input name="a" type="text" inputmode="decimal" autocomplete="off" placeholder="Valor (€) · podes somar: 12+3,5" required>
+ <div class="calc">${[["+","Somar"],["−","Subtrair"],["×","Multiplicar"],["÷","Dividir"]].map(([o,n])=>`<button type="button" class="lnk" data-op="${o}" aria-label="${n}">${o}</button>`).join("")}</div>
+ <div id="calcres" class="mut hidden" aria-live="polite"></div>
  <select name="c">${CATS[type].map(c=>`<option>${c}</option>`).join("")}</select>
  ${type==="investimento"||type==="transferencia"?`<span class="mut">Entra na conta</span><select name="to">${opts(type==="investimento"?"invest":"poupanca")}</select>`:""}
  <details class="more" ${editing?"open":""}><summary>Mais opções · subcategoria, conta, data, repetição, nota</summary><div>
@@ -170,7 +173,7 @@ function metas(){
   return `<div class="card"><div class="flex"><b>${esc(g.name)}</b><button class="x" data-gdel="${g.id}" aria-label="Apagar meta">×</button></div>
   <div class="flex mut"><span>${fmt(g.saved)} de ${fmt(g.target)}</span><span>${Math.round(p)}%</span></div>
   <div class="bar"><i style="width:${p}%;background:var(--inc)"></i></div>${extra}
-  <div class="flex" style="margin-top:10px"><input type="number" inputmode="decimal" step="0.01" placeholder="Adicionar €" id="a${g.id}"><button class="primary" style="width:auto" data-add="${g.id}">Juntar</button></div></div>`}).join(""):`<div class="empty">Define a tua primeira meta: um valor, um prazo, e vai juntando.</div>`}`;
+  <div class="flex" style="margin-top:10px"><input type="text" inputmode="decimal" autocomplete="off" placeholder="Adicionar €" id="a${g.id}"><button class="primary" style="width:auto" data-add="${g.id}">Juntar</button></div></div>`}).join(""):`<div class="empty">Define a tua primeira meta: um valor, um prazo, e vai juntando.</div>`}`;
 }
 
 function invBlock(b,lv){const c=b.invest||0;let t=`<div class="mut" style="margin-top:6px">Investido (líquido): ${fmt(c)}</div>`;
@@ -211,6 +214,14 @@ function startEdit(k){const [kind,a,b]=k.split(":");let item;
  else{const f=new Date(cur.getFullYear(),cur.getMonth(),1),t=new Date(cur.getFullYear(),cur.getMonth()+1,0);item=gen(f,t).find(x=>x.rid===a&&x.date===b)}
  if(!item)return;
  editing={kind,id:a,date:item.date,item};type=item.type;render();window.scrollTo(0,0)}
+function calc(s){s=String(s==null?"":s).replace(/\s/g,"").replace(/,/g,".").replace(/[−–]/g,"-").replace(/[×x*]/gi,"*").replace(/÷/g,"/");
+ const neg=s[0]==="-";if(neg)s=s.slice(1);
+ if(!/^(\d+\.?\d*|\.\d+)([+\-*\/](\d+\.?\d*|\.\d+))*$/.test(s))return NaN;
+ const t=s.match(/\d+\.?\d*|\.\d+|[+\-*\/]/g),nums=[(neg?-1:1)*parseFloat(t[0])],ops=[];
+ for(let i=1;i<t.length;i+=2){const o=t[i],n=parseFloat(t[i+1]);
+  if(o==="*")nums[nums.length-1]*=n;else if(o==="/"){if(n===0)return NaN;nums[nums.length-1]/=n}else{ops.push(o);nums.push(n)}}
+ let r=nums[0];ops.forEach((o,i)=>{r=o==="+"?r+nums[i+1]:r-nums[i+1]});
+ return Math.round(r*100)/100}
 function backup(){S.lastBackup=Date.now();save();const bl=new Blob([JSON.stringify(S)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download="numeros-"+today()+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);render()}
 function adopt(o){S=o;S.tx=Array.isArray(S.tx)?S.tx:[];S.goals=Array.isArray(S.goals)?S.goals:[];S.rec=Array.isArray(S.rec)?S.rec:[];S.accs=S.accs||DEF;S.budgets=S.budgets||{};S.vals=S.vals||[];save();render()}
 function bind(){
@@ -219,6 +230,10 @@ function bind(){
  const cs=f.querySelector('[name=c]'),ss=f.querySelector('[name=s]');
  if(cs&&ss)cs.onchange=()=>{ss.innerHTML=subOpts(cs.value);ss.hidden=!SUBS[cs.value]};
  if(editing){const e=editing.item,E=f.elements;E.a.value=e.amount;E.c.value=e.cat;if(ss){ss.innerHTML=subOpts(e.cat);ss.hidden=!SUBS[e.cat];ss.value=e.sub||""}E.ac.value=e.acc||"ordem";if(E.to&&e.to)E.to.value=e.to;E.d.value=e.date;E.n.value=e.note||""}
+ const ai=f.querySelector('[name=a]'),cr=document.getElementById("calcres");
+ const upd=()=>{const s=ai.value.trim(),hasOp=/[+\-−–×x*÷\/]/i.test(s.replace(/^-/,""));if(!s||!hasOp){cr.classList.add("hidden");return}const v=calc(s);cr.classList.remove("hidden");cr.textContent=isNaN(v)?"Valor inválido":"= "+fmt(v)};
+ ai.oninput=upd;
+ f.querySelectorAll("[data-op]").forEach(b=>b.onclick=()=>{ai.value+=b.dataset.op;ai.focus();upd()});
  const bk1=document.getElementById("bkp"),bk2=document.getElementById("bkp2"),lt=document.getElementById("later"),fb=document.getElementById("impf"),fi=document.getElementById("file");
  if(bk1)bk1.onclick=backup;if(bk2)bk2.onclick=backup;
  if(lt)lt.onclick=()=>{S.snooze=Date.now()+864e5;save();render()};
@@ -230,14 +245,15 @@ function bind(){
  const sk=document.getElementById("skip");if(sk)sk.onclick=()=>{const o=S.rec.find(x=>x.id===editing.id);if(o){o.ex=o.ex||{};o.ex[editing.date]={skip:true}}editing=null;save();render()};
  document.querySelectorAll("[data-edit]").forEach(c=>c.onclick=e=>{if(e.target.closest("button"))return;startEdit(c.dataset.edit)});
  f.onsubmit=e=>{e.preventDefault();const d=new FormData(f);
-  const base={id:uid(),type,amount:parseFloat(d.get("a")),cat:d.get("c"),note:d.get("n"),acc:d.get("ac"),to:d.get("to")||undefined,sub:d.get("s")||undefined},fr=d.get("r");
+  const base={id:uid(),type,amount:calc(d.get("a")),cat:d.get("c"),note:d.get("n"),acc:d.get("ac"),to:d.get("to")||undefined,sub:d.get("s")||undefined},fr=d.get("r");
+  if(isNaN(base.amount)||base.amount<0){alert("Valor inválido. Podes usar números e + − × ÷.");return}
   if(base.to&&base.to===base.acc){alert("Escolhe contas diferentes.");return}
   commit(base,fr,d);
   save();render()};
- document.querySelectorAll("[data-bud]").forEach(b=>b.onclick=()=>{const c=b.dataset.bud,v=prompt("Limite mensal para "+c+" (€). Deixa vazio para remover:",S.budgets[c]||"");if(v===null)return;if(String(v).trim()===""){delete S.budgets[c]}else{const n=parseFloat(String(v).replace(",","."));if(!(n>0)){alert("Indica um valor positivo.");return}S.budgets[c]=n}save();render()});
- document.querySelectorAll("[data-val]").forEach(b=>b.onclick=()=>{const v=prompt("Valor atual do teu portefólio de investimento (€):");if(v===null)return;const n=parseFloat(String(v).replace(",","."));if(isNaN(n)||n<0)return;S.vals.push({id:uid(),date:today(),value:n});save();render()});
+ document.querySelectorAll("[data-bud]").forEach(b=>b.onclick=()=>{const c=b.dataset.bud,v=prompt("Limite mensal para "+c+" (€). Deixa vazio para remover:",S.budgets[c]||"");if(v===null)return;if(String(v).trim()===""){delete S.budgets[c]}else{const n=calc(v);if(!(n>0)){alert("Indica um valor positivo.");return}S.budgets[c]=n}save();render()});
+ document.querySelectorAll("[data-val]").forEach(b=>b.onclick=()=>{const v=prompt("Valor atual do teu portefólio de investimento (€):");if(v===null)return;const n=calc(v);if(isNaN(n)||n<0)return;S.vals.push({id:uid(),date:today(),value:n});save();render()});
  document.querySelectorAll("[data-vdel]").forEach(b=>b.onclick=()=>{S.vals=S.vals.filter(x=>x.id!==b.dataset.vdel);save();render()});
- document.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{const a=S.accs.find(x=>x.id===b.dataset.open),v=prompt("Saldo inicial de "+a.name+" (€):",a.open||0);if(v===null)return;const n=parseFloat(String(v).replace(",","."));if(isNaN(n))return;a.open=n;save();render()});
+ document.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{const a=S.accs.find(x=>x.id===b.dataset.open),v=prompt("Saldo inicial de "+a.name+" (€):",a.open||0);if(v===null)return;const n=calc(v);if(isNaN(n))return;a.open=n;save();render()});
  document.querySelectorAll("[data-stop]").forEach(b=>b.onclick=()=>{
   if(!confirm("Parar esta recorrência a partir deste movimento? Os meses anteriores mantêm-se."))return;
   const r=S.rec.find(x=>x.id===b.dataset.stop),p=new Date(b.dataset.date+"T00:00");p.setDate(p.getDate()-1);
@@ -248,7 +264,7 @@ function bind(){
   S.goals.push({id:uid(),name:d.get("n"),target:parseFloat(d.get("t")),due:d.get("d"),saved:0});save();render()};
  document.querySelectorAll("[data-gdel]").forEach(b=>b.onclick=()=>{S.goals=S.goals.filter(x=>x.id!==b.dataset.gdel);save();render()});
  document.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{
-  const v=parseFloat(document.getElementById("a"+b.dataset.add).value);if(!v)return;
+  const v=calc(document.getElementById("a"+b.dataset.add).value);if(!v)return;
   S.goals.find(x=>x.id===b.dataset.add).saved+=v;save();render()});
  const ex=document.getElementById("exp"),im=document.getElementById("imp");
  if(ex)ex.onclick=()=>{S.lastBackup=Date.now();save();const j=JSON.stringify(S);
