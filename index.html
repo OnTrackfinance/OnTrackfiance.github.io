@@ -24,7 +24,7 @@ h2{font:700 17px Georgia,serif;margin:22px 0 10px}
 .hero{background:var(--acc);color:var(--bg);border-radius:16px;padding:18px}
 .hero small{opacity:.75}
 .hero .big{font:700 34px Georgia,serif;margin:2px 0 10px}
-.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.row3{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .row3 div{background:rgba(127,127,127,.18);border-radius:10px;padding:8px}
 .row3 span{display:block;font-size:12px;opacity:.8}.row3 b{font-size:15px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px}
@@ -133,7 +133,7 @@ function resumo(){
   if(l&&p>=1)over.push(c);else if(l&&p>=.8)near.push(c);
   return `<div class="card"><div class="flex"><span>${esc(c)}</span><b>${fmt(v)}${l?` <span class="mut">/ ${fmt(l)}</span>`:""}</b></div><div class="bar"><i style="width:${l?Math.min(100,p*100):(exp?v/exp*100:0)}%;background:${col}"></i></div><div class="flex mut" style="margin-top:6px"><span>${l?(v<=l?fmt(l-v)+" disponível":"Excedido"):"Sem limite"}</span><button class="lnk" data-bud="${esc(c)}">${l?"Alterar":"Definir limite"}</button></div>${det(c)}</div>`}).join("");
  return `${bk}<div class="hero"><small>Disponível na conta à ordem</small><div class="big">${fmt(disp)}</div><div style="opacity:.85;margin:-4px 0 12px;font-size:14px">Com a poupança: <b>${fmt(comPoup)}</b></div>
- <div class="row3"><div><span>Receitas</span><b>${fmt(inc)}</b></div><div><span>Despesas</span><b>${fmt(exp)}</b></div><div><span>Sobra do mês</span><b>${fmt(inc-exp)}</b></div></div>
+ <div class="row3"><div><span>Receitas</span><b>${fmt(inc)}</b></div><div><span>Despesas</span><b>${fmt(exp)}</b></div></div>
  <div style="opacity:.75;font-size:13px;margin-top:10px">Investido ${fmt(invM)} · Transferido ${fmt(trf)}</div></div>
  <div class="card flex" style="margin-top:10px"><div><b>Taxa de poupança</b><div class="mut">(receitas − despesas) ÷ receitas</div></div><b class="${rate>=20?'inc':''}">${rate}%</b></div>
  <div class="card flex"><div><b>Total investido</b><div class="mut">Desde o início</div></div><b class="inv">${fmt(totalInv)}</b></div>
